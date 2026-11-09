@@ -1,84 +1,66 @@
-# Navnirman v0.3.0 — Admin Dashboard & Video Management
+# Navnirman v0.4.0 — Subscriptions & Protected Playback
 
-This release builds on v0.2.0 authentication. It adds admin-only category/video management, local video-file storage, a public published-video catalogue, and dashboard counts.
+Builds on v0.3.0. Adds subscription plan management, customer subscription history/cancellation, admin manual activation, Premium entitlement checks, and HTTP byte-range video responses.
+
+## Premium plan in v0.4.0
+- Only one plan is offered: **Monthly — ₹50 for 30 days**.
+- No yearly, quarterly, or other plan is seeded or shown.
+- The ₹50 amount is stored as 5,000 paise.
 
 ## Requirements
-- Java 21
-- Maven 3.9+
+- Java 21, Maven 3.9+
 - Node.js 20+
 - Docker Desktop
 
-## 1. Database
-From the project root:
+## Start database
 ```bash
 docker compose up -d
 ```
-Keep the existing MySQL host mapping `3307:3306` if your Windows MySQL already uses 3306.
+MySQL remains on host port 3307.
 
-## 2. Backend
+## Backend
+Set the existing admin and secret environment variables as in v0.3.0, then:
 ```bash
 cd backend
 mvn clean test
-mvn package
-```
-Set your admin credentials before starting. Use your own strong password (at least 12 characters); do not commit secrets:
-```bash
-export ADMIN_NAME="Navnirman Admin"
-export ADMIN_EMAIL="admin@example.com"
-export ADMIN_PASSWORD="replace-with-a-strong-private-password"
-export JWT_SECRET="replace-with-a-random-secret-at-least-32-characters"
-export VIDEO_STORAGE_DIR="../storage/videos"
 mvn spring-boot:run
 ```
-Windows PowerShell equivalent:
-```powershell
-$env:ADMIN_NAME="Navnirman Admin"
-$env:ADMIN_EMAIL="admin@example.com"
-$env:ADMIN_PASSWORD="replace-with-a-strong-private-password"
-$env:JWT_SECRET="replace-with-a-random-secret-at-least-32-characters"
-$env:VIDEO_STORAGE_DIR="../storage/videos"
-mvn spring-boot:run
-```
-The bootstrap creates the admin only if the email is not already registered. Existing customer/admin records remain in MySQL.
+Health endpoint: `http://localhost:8080/api/health` (version 0.4.0).
 
-## 3. Frontend
-In a second terminal:
+## Frontend
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Open http://localhost:5173. Admin sign-in is at http://localhost:5173/admin/login. After admin login, open Dashboard.
+Open `http://localhost:5173`.
 
-## 4. v0.3.0 features
-- Dashboard totals: videos, published, drafts, customers, categories.
-- Create and delete categories.
-- Upload video files to local disk; metadata is saved in MySQL.
-- Marathi, Hindi and English titles/descriptions.
-- Free/Premium flag and publish/unpublish controls.
-- Public catalogue shows published videos only.
-- Admin APIs require `ROLE_ADMIN`.
-- Public playback for published Free videos through `GET /api/videos/{id}/stream`; Premium playback is blocked until subscription entitlement is implemented.
-- Customer catalogue includes a Play button and in-page HTML5 video player.
+## v0.4.0 features
+- Monthly Premium plan: ₹50 / 30 days.
+- Customer can view subscription history and cancel an active subscription.
+- Admin can manually grant/cancel subscriptions.
+- Premium video stream checks the signed-in user's active subscription.
+- Free published videos remain publicly playable.
+- Single byte-range responses (up to 1 MiB per request) for seeking/chunked playback.
 
-## Important scope and safety notes
-- Storage defaults to `./storage/videos` relative to the backend working directory. Set `VIDEO_STORAGE_DIR` to a durable path before production.
-- Upload limit is 2 GB. Confirm adequate disk space and backup the storage directory.
-- The v0.3.0 `Premium` flag is metadata only; subscription entitlement enforcement and payment verification are planned for v0.4/v0.5.
-- Free published video playback is public in this release; Premium video playback returns 403 until subscription entitlement is implemented. The endpoint returns a file response; HTTP range/seek support, CDN, transcoding, watermarking, signed playback URLs, and stronger anti-download controls are future work.
-- Thumbnail is currently an externally hosted URL. Local thumbnail upload is not included.
-- Use HTTPS and secure secret management before public deployment. Do not use the development fallback JWT secret in production.
-- `ddl-auto: update` is retained for local development. Use reviewed database migrations before production.
-- No public admin registration endpoint exists.
+## Important upgrade note
+If you already ran an earlier v0.4.0 build, its old YEARLY plan may remain in your database. This version removes all non-MONTHLY plans at startup and creates the ₹50 Monthly plan if missing. Existing subscription records remain in the database, but they may reference the old plan records; back up your database before applying schema/data changes in any non-test environment.
 
-## Git release workflow
-From the repository root:
+## Important boundaries
+- **No payment gateway is connected in v0.4.0.** Admin activation is manual/test activation only; it is not payment proof. Actual checkout, signed payment webhooks, reconciliation, refunds, tax invoices and renewal automation are v0.5.0 scope.
+- Premium playback currently buffers the complete video into browser memory via Blob assembly. Suitable only for small local test videos; not production-grade large-video streaming.
+- HTTP range support is single-range only, capped at 1 MiB per response. CDN, transcoding, HLS/DASH, signed short-lived playback URLs, watermarking, and download deterrence remain future work.
+- Local video files must be backed up. Configure a durable `VIDEO_STORAGE_DIR`.
+- Use HTTPS and secure secret management before public deployment. Do not use development fallback JWT secret in production.
+- MySQL schema updates are managed locally with Hibernate `ddl-auto:update`; use reviewed migrations before production.
+
+## Git release
+After successful backend/frontend builds and manual tests:
 ```bash
 git status
 git add .
-git commit -m "Implement v0.3.0 admin dashboard and video management"
-git tag -a v0.3.0 -m "Navnirman v0.3.0"
+git commit -m "Set Navnirman Premium plan to ₹50 monthly"
+git tag -a v0.4.0 -m "Navnirman v0.4.0"
 git push origin main
-git push origin v0.3.0
+git push origin v0.4.0
 ```
-Only tag after successful local builds and tests.

@@ -11,10 +11,12 @@ import java.util.*;
 import java.io.IOException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.Authentication;
+import com.navnirman.subscription.SubscriptionService;
 @RestController
 public class ContentController {
- private final ContentService service; private final Path storage;
- public ContentController(ContentService s,@Value("${app.storage.video-dir:./storage/videos}")String dir)throws IOException{service=s;storage=Paths.get(dir).toAbsolutePath().normalize();Files.createDirectories(storage);}
+ private final ContentService service; private final Path storage; private final SubscriptionService subscriptions;
+ public ContentController(ContentService s,SubscriptionService subscriptions,@Value("${app.storage.video-dir:./storage/videos}")String dir)throws IOException{service=s;this.subscriptions=subscriptions;storage=Paths.get(dir).toAbsolutePath().normalize();Files.createDirectories(storage);}
  @GetMapping("/api/categories") public List<CategoryResponse> categories(){return service.categories(false);}
  @GetMapping("/api/videos") public List<VideoResponse> publicVideos(){return service.videos(false);}
  @GetMapping("/api/admin/dashboard") public DashboardResponse dashboard(){return service.dashboard();}
@@ -45,14 +47,38 @@ public class ContentController {
   return service.updateVideo(id,new ContentService.VideoUpdate(required(r.titleMr()),required(r.titleHi()),required(r.titleEn()),r.descriptionMr(),r.descriptionHi(),r.descriptionEn(),r.categoryId(),r.thumbnailUrl(),r.premium(),r.published()));
  }
  @DeleteMapping("/api/admin/videos/{id}") public ResponseEntity<Void> deleteVideo(@PathVariable Long id)throws IOException{var v=service.entity(id);Path p=storage.resolve(v.getStoredFilename()).normalize();service.deleteVideo(id);Files.deleteIfExists(p);return ResponseEntity.noContent().build();}
- @GetMapping("/api/videos/{id}/stream") public ResponseEntity<Resource> stream(@PathVariable Long id)throws IOException{
+ @GetMapping("/api/videos/{id}/stream")
+ public ResponseEntity<byte[]> stream(@PathVariable Long id,@RequestHeader(value="Range",required=false)String range,Authentication authentication)throws IOException{
   var entity=service.entity(id);
   if(!entity.isPublished())throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Video is not published");
-  if(entity.isPremium())throw new ResponseStatusException(HttpStatus.FORBIDDEN,"This is Premium content. A subscription is required.");
-  Path p=storage.resolve(entity.getStoredFilename()).normalize();
-  if(!p.startsWith(storage)||!Files.exists(p))throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Video file not found");
-  return ResponseEntity.ok().contentType(MediaType.parseMediaType(entity.getContentType()))
-   .body(new FileSystemResource(p));
+  if(entity.isPremium()){
+   if(authentication==null)throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Sign in to watch Premium content");
+   if(!subscriptions.hasPremium(authentication.getName()))throw new ResponseStatusException(HttpStatus.FORBIDDEN,"An active Premium subscription is required");
+  }
+  Path file=storage.resolve(entity.getStoredFilename()).normalize();
+  if(!file.startsWith(storage)||!Files.exists(file))throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Video file not found");
+  long length=Files.size(file);if(length==0)throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Video file is empty");
+  long start=0,end=length-1;
+  if(range!=null&&!range.isBlank()){
+   if(!range.startsWith("bytes=")||range.contains(","))throw new ResponseStatusException(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE,"Only one byte range is supported");
+   try{
+    String[] parts=range.substring(6).split("-",2);
+    if(parts.length!=2)throw new IllegalArgumentException();
+    if(parts[0].isBlank()){long suffix=Long.parseLong(parts[1]);if(suffix<=0)throw new IllegalArgumentException();start=Math.max(0,length-suffix);}
+    else {start=Long.parseLong(parts[0]);if(!parts[1].isBlank())end=Long.parseLong(parts[1]);}
+    if(start<0||start>=length||end<start)throw new IllegalArgumentException();end=Math.min(end,length-1);
+   }catch(RuntimeException ex){throw new ResponseStatusException(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE,"Invalid byte range");}
+  }
+  int size=(int)Math.min(end-start+1,1024*1024);
+  if(end-start+1>1024*1024)end=start+size-1;
+  byte[] bytes=new byte[size];
+  try(var raf=new java.io.RandomAccessFile(file.toFile(),"r")){raf.seek(start);raf.readFully(bytes);}
+  HttpHeaders headers=new HttpHeaders();headers.setContentType(MediaType.parseMediaType(entity.getContentType()));
+  headers.set(HttpHeaders.ACCEPT_RANGES,"bytes");headers.setContentLength(bytes.length);
+  headers.set(HttpHeaders.CACHE_CONTROL,"private, no-store");
+  if(range!=null){headers.set(HttpHeaders.CONTENT_RANGE,"bytes "+start+"-"+end+"/"+length);return new ResponseEntity<>(bytes,headers,HttpStatus.PARTIAL_CONTENT);}
+  if(length>bytes.length){headers.set(HttpHeaders.CONTENT_RANGE,"bytes "+start+"-"+end+"/"+length);return new ResponseEntity<>(bytes,headers,HttpStatus.PARTIAL_CONTENT);}
+  return new ResponseEntity<>(bytes,headers,HttpStatus.OK);
  }
  private ContentCategory category(Long id){return service.category(id);}
  private String required(String s){if(s==null||s.isBlank())throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Marathi, Hindi and English titles are required");return s.trim();}

@@ -18,11 +18,17 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
    .authorizeHttpRequests(a->a.requestMatchers(HttpMethod.OPTIONS,"/**").permitAll()
     .requestMatchers("/api/health","/actuator/health").permitAll()
     .requestMatchers(HttpMethod.POST,"/api/auth/register","/api/auth/login","/api/auth/admin/login").permitAll()
-    .requestMatchers(HttpMethod.GET,"/api/categories","/api/videos","/api/videos/*/stream").permitAll()
+    .requestMatchers(
+            HttpMethod.GET,
+            "/api/categories",
+            "/api/videos",
+            "/api/videos/*/stream",
+            "/api/subscriptions/plans"
+    ).permitAll()
     .requestMatchers("/api/auth/me").authenticated()
     .requestMatchers("/api/admin/**").hasRole("ADMIN")
     .anyRequest().authenticated())
    .addFilterBefore(jwt,UsernamePasswordAuthenticationFilter.class).build();
  }
- @Bean CorsConfigurationSource corsConfigurationSource(){CorsConfiguration c=new CorsConfiguration();c.setAllowedOrigins(List.of("http://localhost:5173"));c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));c.setAllowedHeaders(List.of("Authorization","Content-Type"));UrlBasedCorsConfigurationSource s=new UrlBasedCorsConfigurationSource();s.registerCorsConfiguration("/**",c);return s;}
+ @Bean CorsConfigurationSource corsConfigurationSource(){CorsConfiguration c=new CorsConfiguration();c.setAllowedOrigins(List.of("http://localhost:5173"));c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));c.setAllowedHeaders(List.of("Authorization","Content-Type","Range"));c.setExposedHeaders(List.of("Content-Range","Accept-Ranges","Content-Length"));UrlBasedCorsConfigurationSource s=new UrlBasedCorsConfigurationSource();s.registerCorsConfiguration("/**",c);return s;}
 }
