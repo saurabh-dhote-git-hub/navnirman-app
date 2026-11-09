@@ -1,8 +1,9 @@
-# Navnirman roadmap
-- [x] v0.1.0 foundation: React landing page, Spring Boot health API, MySQL Docker service
-- [x] v0.2.0 authentication: customer registration, email/mobile login, separate admin login, BCrypt, JWT, role protection
-- [ ] v0.3.0 admin video catalogue and local upload
-- [ ] v0.4.0 protected video streaming and subscriptions
-- [ ] v0.5.0 payment integration and webhook verification
-- [ ] v0.6.0 Android client
-- [ ] v1.0.0 production hardening and deployment
+# Navnirman Roadmap
+
+- v0.1.0 — Foundation: React, Spring Boot, MySQL, health endpoint.
+- v0.2.0 — Customer authentication and separate admin login.
+- v0.3.0 — Admin dashboard, categories, multilingual video metadata, local uploads, publishing workflow.
+- v0.4.0 — Subscription plans, entitlement checks, secure streaming improvements.
+- v0.5.0 — Payment gateway integration and verified webhooks.
+- v0.6.0 — Android application.
+- v1.0.0 — Production hardening, deployment, monitoring, backups and release operations.

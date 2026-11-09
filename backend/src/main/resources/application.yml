@@ -1,8 +1,14 @@
 server:
   port: 8080
+  tomcat:
+    max-swallow-size: 2GB
 spring:
   application:
     name: navnirman-api
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3307}/${DB_NAME:navnirman}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DB_USERNAME:navnirman}
@@ -15,6 +21,8 @@ spring:
       hibernate:
         format_sql: true
 app:
+  storage:
+    video-dir: ${VIDEO_STORAGE_DIR:./storage/videos}
   jwt:
     secret: ${JWT_SECRET:local-development-only-secret-change-me-123456789}
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
