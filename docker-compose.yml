@@ -9,7 +9,7 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-local_dev_password}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-local_root_password}
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - navnirman_mysql_data:/var/lib/mysql
     healthcheck:

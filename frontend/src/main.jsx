@@ -1,29 +1,30 @@
-import React from 'react'
-import { createRoot } from 'react-dom/client'
-import './style.css'
-
-const categories = ['History', 'Technology', 'Science', 'Culture', 'Geography']
-
-function App() {
-  return (
-    <main className="shell">
-      <nav className="nav">
-        <div className="brand">NAVNIRMAN <span>नवनिर्माण</span></div>
-        <div className="nav-links"><a href="#explore">Explore</a><a href="#plans">Premium</a><button>Sign in</button></div>
-      </nav>
-      <section className="hero">
-        <p className="eyebrow">KNOWLEDGE • STORIES • IDEAS</p>
-        <h1>Discover more.<br/><em>Understand deeper.</em></h1>
-        <p className="intro">A home for thoughtful videos on history, technology, science and the world around us.</p>
-        <button className="primary">Explore videos <span>→</span></button>
-      </section>
-      <section id="explore" className="section">
-        <div className="section-head"><div><p className="eyebrow">CURATED FOR THE CURIOUS</p><h2>Explore categories</h2></div><span className="muted">More perspectives. More understanding.</span></div>
-        <div className="categories">{categories.map((c, i) => <article className={`category c${i}`} key={c}><span>0{i+1}</span><h3>{c}</h3><p>Discover stories and ideas</p></article>)}</div>
-      </section>
-      <footer><span>NAVNIRMAN · नवनिर्माण</span><span>Learn without limits.</span></footer>
-    </main>
-  )
-}
-
-createRoot(document.getElementById('root')).render(<App />)
+import React,{useState} from 'react';import{createRoot}from'react-dom/client';import'./style.css';
+const API='http://localhost:8080/api';
+function App(){
+ const initialAdminPath = window.location.pathname === '/admin/login';
+ const [view,setView]=useState(initialAdminPath?'login':'home'),[admin,setAdmin]=useState(initialAdminPath),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ const [form,setForm]=useState({fullName:'',email:'',mobileNumber:'',identifier:'',password:'',confirmPassword:''});
+ const [account,setAccount]=useState(()=>{try{return JSON.parse(sessionStorage.getItem('navnirmanUser')||'null')}catch{return null}});
+ const update=e=>setForm({...form,[e.target.name]:e.target.value});
+ const open=(v,a=false)=>{setView(v);setAdmin(a);window.history.pushState({},'',a?'/admin/login':v==='home'?'/':'/'+v);setMessage('');setForm({fullName:'',email:'',mobileNumber:'',identifier:'',password:'',confirmPassword:''})};
+ async function submit(e){e.preventDefault();setMessage('');if(view==='register'&&form.password!==form.confirmPassword){setMessage('Passwords do not match.');return}
+ setBusy(true);try{const path=view==='register'?'/auth/register':admin?'/auth/admin/login':'/auth/login';
+ const body=view==='register'?{fullName:form.fullName,email:form.email,mobileNumber:form.mobileNumber,password:form.password}:{identifier:form.identifier,password:form.password};
+ const res=await fetch(API+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await res.json().catch(()=>({}));
+ if(!res.ok)throw new Error(data.detail||data.message||'Unable to complete request. Check your details.');
+ sessionStorage.setItem('navnirmanToken',data.accessToken);sessionStorage.setItem('navnirmanUser',JSON.stringify(data.user));setAccount(data.user);setView('account');
+ }catch(err){setMessage(err.message)}finally{setBusy(false)}}
+ function logout(){sessionStorage.removeItem('navnirmanToken');sessionStorage.removeItem('navnirmanUser');setAccount(null);setAdmin(false);setView('home');window.history.pushState({},'','/')}
+ return <main className="shell"><nav className="nav"><button className="wordmark" onClick={()=>setView('home')}>NAVNIRMAN<span>नवनिर्माण</span></button><div className="navlinks"><button onClick={()=>setView('home')}>Explore</button><button onClick={()=>setView('plans')}>Premium</button>{account?<button className="outline" onClick={()=>setView('account')}>My account</button>:<button className="outline" onClick={()=>open('login')}>Sign in</button>}</div></nav>
+ {view==='home'&&<><section className="hero"><p className="eyebrow">KNOWLEDGE • STORIES • IDEAS</p><h1>Discover more.<br/><em>Understand deeper.</em></h1><p className="intro">A home for thoughtful videos on history, technology, science and the world around us.</p><button className="primary" onClick={()=>open('register')}>Join Navnirman →</button></section><section className="section"><p className="eyebrow">CURATED FOR THE CURIOUS</p><h2>Explore categories</h2><div className="categories">{['History','Technology','Science','Culture','Geography'].map((c,i)=><article className="category" key={c}><span>0{i+1}</span><h3>{c}</h3><p>Discover stories and ideas</p></article>)}</div></section></>}
+ {view==='plans'&&<section className="panel"><p className="eyebrow">NAVNIRMAN PREMIUM</p><h1>Learn without limits.</h1><p>Subscription plans and payments will be introduced in a later release.</p><button className="primary" onClick={()=>open('register')}>Join Navnirman</button></section>}
+ {view==='categories'&&<section className="panel"><h1>Knowledge starts here.</h1><p>Video collections will be introduced in a later release.</p></section>}
+ {(view==='register'||view==='login')&&<section className="auth-wrap"><div className="auth-card"><p className="eyebrow">{admin?'ADMIN CONSOLE':'YOUR LEARNING JOURNEY'}</p><h1>{view==='register'?'Create account':admin?'Admin sign in':'Welcome back'}</h1><p className="muted">{view==='register'?'Use your email and mobile number to join.':'Sign in to continue to Navnirman.'}</p><form onSubmit={submit}>
+ {view==='register'?<><label>Full name<input name="fullName" value={form.fullName} onChange={update} required minLength="2" maxLength="120"/></label><label>Email address<input type="email" name="email" value={form.email} onChange={update} required/></label><label>Mobile number<input type="tel" inputMode="numeric" pattern="[0-9]{10,15}" name="mobileNumber" placeholder="10–15 digits" value={form.mobileNumber} onChange={update} required/></label></>:<label>{admin?'Admin email':'Email or mobile number'}<input name="identifier" value={form.identifier} onChange={update} required/></label>}
+ <label>Password<input type="password" name="password" value={form.password} onChange={update} required minLength="8" maxLength="72"/></label>{view==='register'&&<label>Confirm password<input type="password" name="confirmPassword" value={form.confirmPassword} onChange={update} required minLength="8" maxLength="72"/></label>}
+ {message&&<div className="message" role="alert">{message}</div>}<button className="primary submit" disabled={busy}>{busy?'Please wait…':view==='register'?'Create account':'Sign in'}</button></form>
+ {!admin&&<p className="switch">{view==='register'?'Already registered?':'New to Navnirman?'} <button onClick={()=>open(view==='register'?'login':'register')}>{view==='register'?'Sign in':'Create account'}</button></p>}
+ <button className="textlink subdued" onClick={()=>{setAdmin(false);setView('home');window.history.pushState({},'','/')}}>Back to home</button></div></section>}
+ {view==='account'&&account&&<section className="panel"><p className="eyebrow">ACCOUNT</p><h1>Welcome, {account.fullName}</h1><p>{account.email}</p><p>{account.mobileNumber}</p><p className="role">{account.role}</p><button className="primary" onClick={logout}>Sign out</button></section>}
+ <footer><span>NAVNIRMAN · नवनिर्माण</span><span>Learn without limits.</span></footer></main>}
+createRoot(document.getElementById('root')).render(<App/>);
