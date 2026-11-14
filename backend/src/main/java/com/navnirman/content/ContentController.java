@@ -48,37 +48,78 @@ public class ContentController {
  }
  @DeleteMapping("/api/admin/videos/{id}") public ResponseEntity<Void> deleteVideo(@PathVariable Long id)throws IOException{var v=service.entity(id);Path p=storage.resolve(v.getStoredFilename()).normalize();service.deleteVideo(id);Files.deleteIfExists(p);return ResponseEntity.noContent().build();}
  @GetMapping("/api/videos/{id}/stream")
- public ResponseEntity<byte[]> stream(@PathVariable Long id,@RequestHeader(value="Range",required=false)String range,Authentication authentication)throws IOException{
-  var entity=service.entity(id);
-  if(!entity.isPublished())throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Video is not published");
-  if(entity.isPremium()){
-   if(authentication==null)throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Sign in to watch Premium content");
-   if(!subscriptions.hasPremium(authentication.getName()))throw new ResponseStatusException(HttpStatus.FORBIDDEN,"An active Premium subscription is required");
+ public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> stream(
+   @PathVariable Long id,
+   @RequestHeader(value="Range", required=false) String range,
+   Authentication authentication) throws IOException {
+  var entity = service.entity(id);
+  if (!entity.isPublished()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Video is not published");
+  if (entity.isPremium()) {
+   if (authentication == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sign in to watch Premium content");
+   if (!subscriptions.hasPremium(authentication.getName()))
+    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "An active Premium subscription is required");
   }
-  Path file=storage.resolve(entity.getStoredFilename()).normalize();
-  if(!file.startsWith(storage)||!Files.exists(file))throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Video file not found");
-  long length=Files.size(file);if(length==0)throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Video file is empty");
-  long start=0,end=length-1;
-  if(range!=null&&!range.isBlank()){
-   if(!range.startsWith("bytes=")||range.contains(","))throw new ResponseStatusException(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE,"Only one byte range is supported");
-   try{
-    String[] parts=range.substring(6).split("-",2);
-    if(parts.length!=2)throw new IllegalArgumentException();
-    if(parts[0].isBlank()){long suffix=Long.parseLong(parts[1]);if(suffix<=0)throw new IllegalArgumentException();start=Math.max(0,length-suffix);}
-    else {start=Long.parseLong(parts[0]);if(!parts[1].isBlank())end=Long.parseLong(parts[1]);}
-    if(start<0||start>=length||end<start)throw new IllegalArgumentException();end=Math.min(end,length-1);
-   }catch(RuntimeException ex){throw new ResponseStatusException(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE,"Invalid byte range");}
+
+  Path file = storage.resolve(entity.getStoredFilename()).normalize();
+  if (!file.startsWith(storage) || !Files.isRegularFile(file))
+   throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Video file not found");
+  long length = Files.size(file);
+  if (length <= 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Video file is empty");
+
+  long start = 0;
+  long end = length - 1;
+  boolean partial = range != null && !range.isBlank();
+  if (partial) {
+   if (!range.startsWith("bytes=") || range.contains(","))
+    throw new ResponseStatusException(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE, "Only one byte range is supported");
+   try {
+    String[] parts = range.substring(6).trim().split("-", 2);
+    if (parts.length != 2) throw new IllegalArgumentException();
+    if (parts[0].isBlank()) {
+     long suffixLength = Long.parseLong(parts[1]);
+     if (suffixLength <= 0) throw new IllegalArgumentException();
+     start = Math.max(0, length - suffixLength);
+    } else {
+     start = Long.parseLong(parts[0]);
+     if (!parts[1].isBlank()) end = Long.parseLong(parts[1]);
+    }
+    if (start < 0 || start >= length || end < start) throw new IllegalArgumentException();
+    end = Math.min(end, length - 1);
+   } catch (RuntimeException ex) {
+    throw new ResponseStatusException(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE, "Invalid byte range");
+   }
   }
-  int size=(int)Math.min(end-start+1,1024*1024);
-  if(end-start+1>1024*1024)end=start+size-1;
-  byte[] bytes=new byte[size];
-  try(var raf=new java.io.RandomAccessFile(file.toFile(),"r")){raf.seek(start);raf.readFully(bytes);}
-  HttpHeaders headers=new HttpHeaders();headers.setContentType(MediaType.parseMediaType(entity.getContentType()));
-  headers.set(HttpHeaders.ACCEPT_RANGES,"bytes");headers.setContentLength(bytes.length);
-  headers.set(HttpHeaders.CACHE_CONTROL,"private, no-store");
-  if(range!=null){headers.set(HttpHeaders.CONTENT_RANGE,"bytes "+start+"-"+end+"/"+length);return new ResponseEntity<>(bytes,headers,HttpStatus.PARTIAL_CONTENT);}
-  if(length>bytes.length){headers.set(HttpHeaders.CONTENT_RANGE,"bytes "+start+"-"+end+"/"+length);return new ResponseEntity<>(bytes,headers,HttpStatus.PARTIAL_CONTENT);}
-  return new ResponseEntity<>(bytes,headers,HttpStatus.OK);
+
+  final long offset = start;
+  final long bytesToSend = end - start + 1;
+  var body = (org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody) output -> {
+   try (var input = new java.io.RandomAccessFile(file.toFile(), "r")) {
+    input.seek(offset);
+    byte[] buffer = new byte[64 * 1024];
+    long remaining = bytesToSend;
+    while (remaining > 0) {
+     int read = input.read(buffer, 0, (int)Math.min(buffer.length, remaining));
+     if (read < 0) break;
+     output.write(buffer, 0, read);
+     remaining -= read;
+    }
+   }
+  };
+
+  HttpHeaders headers = new HttpHeaders();
+  MediaType mediaType;
+  try { mediaType = MediaType.parseMediaType(entity.getContentType()); }
+  catch (RuntimeException ex) { mediaType = MediaType.APPLICATION_OCTET_STREAM; }
+  headers.setContentType(mediaType);
+  headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
+  headers.setContentLength(bytesToSend);
+  headers.set(HttpHeaders.CACHE_CONTROL, "private, no-store");
+  headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline");
+  if (partial) {
+   headers.set(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + end + "/" + length);
+   return new ResponseEntity<>(body, headers, HttpStatus.PARTIAL_CONTENT);
+  }
+  return new ResponseEntity<>(body, headers, HttpStatus.OK);
  }
  private ContentCategory category(Long id){return service.category(id);}
  private String required(String s){if(s==null||s.isBlank())throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Marathi, Hindi and English titles are required");return s.trim();}

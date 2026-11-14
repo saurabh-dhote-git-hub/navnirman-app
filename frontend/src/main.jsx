@@ -12,7 +12,8 @@ function App(){
  const [upload,setUpload]=useState({titleMr:'',titleHi:'',titleEn:'',descriptionMr:'',descriptionHi:'',descriptionEn:'',categoryId:'',premium:false,published:false,thumbnailUrl:'',file:null});
  const [categoryName,setCategoryName]=useState(''),[categorySlug,setCategorySlug]=useState('');
  const [grantEmail,setGrantEmail]=useState(''),[grantPlan,setGrantPlan]=useState('MONTHLY'),[grantDays,setGrantDays]=useState('');
- const [playing,setPlaying]=useState(null),[plans,setPlans]=useState([]),[mySubs,setMySubs]=useState([]),[playUrl,setPlayUrl]=useState('');const [paymentBusy,setPaymentBusy]=useState(false);
+ const [playing,setPlaying]=useState(null),[plans,setPlans]=useState([]),[mySubs,setMySubs]=useState([]),[playUrl,setPlayUrl]=useState('');
+ const [paymentBusy,setPaymentBusy]=useState(false);
  const token=()=>sessionStorage.getItem('navnirmanToken');
  const headers=()=>({Authorization:'Bearer '+token()});
  const update=e=>setForm({...form,[e.target.name]:e.target.value});
@@ -57,7 +58,7 @@ function App(){
   if(!token())throw new Error('Please sign in to watch Premium videos.');
   if(!mySubs.some(x=>x.active))throw new Error('An active Premium subscription is required. Visit Premium plans.');
   const parts=[];let start=0,done=false;
-  while(!done){const r=await fetch(API+'/videos/'+v.id+'/stream',{headers:{Authorization:'Bearer '+token(),Range:'bytes='+start+'-'+(start+1048575)}});if(!r.ok)throw new Error(await r.text()||'Unable to play video');const b=await r.blob();parts.push(b);const cr=r.headers.get('Content-Range');if(!cr){done=true}else{const m = cr.match(/bytes (\d+)-(\d+)\/(\d+)/);if(!m)done=true;else{start=Number(m[2])+1;done=start>=Number(m[3])}}}
+  while(!done){const r=await fetch(API+'/videos/'+v.id+'/stream',{headers:{Authorization:'Bearer '+token(),Range:'bytes='+start+'-'+(start+1048575)}});if(!r.ok)throw new Error(await r.text()||'Unable to play video');const b=await r.blob();parts.push(b);const cr=r.headers.get('Content-Range');if(!cr){done=true}else{const m=cr.match(/bytes (\d+)-(\d+)\/(\d+)/);if(!m)done=true;else{start=Number(m[2])+1;done=start>=Number(m[3])}}}
   setPlayUrl(URL.createObjectURL(new Blob(parts,{type:v.contentType||'video/mp4'})));
  }catch(e){setPlaying(null);setMessage(e.message)}}
  
