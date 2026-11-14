@@ -26,6 +26,10 @@ app:
   jwt:
     secret: ${JWT_SECRET:local-development-only-secret-change-me-123456789}
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
+  razorpay:
+    key-id: ${RAZORPAY_KEY_ID:}
+    key-secret: ${RAZORPAY_KEY_SECRET:}
+    webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
 management:
   endpoints:
     web:

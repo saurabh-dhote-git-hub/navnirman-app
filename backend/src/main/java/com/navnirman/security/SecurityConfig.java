@@ -17,14 +17,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
   return http.csrf(c->c.disable()).cors(Customizer.withDefaults()).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
    .authorizeHttpRequests(a->a.requestMatchers(HttpMethod.OPTIONS,"/**").permitAll()
     .requestMatchers("/api/health","/actuator/health").permitAll()
-    .requestMatchers(HttpMethod.POST,"/api/auth/register","/api/auth/login","/api/auth/admin/login").permitAll()
-    .requestMatchers(
-            HttpMethod.GET,
-            "/api/categories",
-            "/api/videos",
-            "/api/videos/*/stream",
-            "/api/subscriptions/plans"
-    ).permitAll()
+    .requestMatchers(HttpMethod.POST,"/api/auth/register","/api/auth/login","/api/auth/admin/login","/api/payments/webhook").permitAll()
+    .requestMatchers(HttpMethod.GET,"/api/categories","/api/videos","/api/videos/*/stream").permitAll()
+    .requestMatchers(HttpMethod.GET, "/api/subscriptions/plans").permitAll()
     .requestMatchers("/api/auth/me").authenticated()
     .requestMatchers("/api/admin/**").hasRole("ADMIN")
     .anyRequest().authenticated())

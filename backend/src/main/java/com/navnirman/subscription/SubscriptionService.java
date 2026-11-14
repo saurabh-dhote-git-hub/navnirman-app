@@ -8,10 +8,10 @@ import static com.navnirman.subscription.SubscriptionDtos.*;
  private final PlanRepository plans;private final SubscriptionRepository subscriptions;private final AppUserRepository users;
  public SubscriptionService(PlanRepository p,SubscriptionRepository s,AppUserRepository u){plans=p;subscriptions=s;users=u;}
  @Transactional public void seedPlans(){
-  if(plans.findByCodeAndActiveTrue("MONTHLY").isEmpty()){
-   plans.save(new SubscriptionPlan("MONTHLY","Monthly","30 days of Navnirman Premium access",5000,30));
-  }
-  plans.findAll().stream().filter(p->!p.getCode().equals("MONTHLY")).forEach(p->plans.deleteById(p.getId()));
+  SubscriptionPlan monthly=plans.findAll().stream().filter(p->p.getCode().equals("MONTHLY")).findFirst().orElse(null);
+  if(monthly==null)plans.save(new SubscriptionPlan("MONTHLY","Monthly","30 days of Navnirman Premium access",5000,30));
+  else monthly.configureMonthly();
+  plans.findAll().stream().filter(p->!p.getCode().equals("MONTHLY")).forEach(SubscriptionPlan::deactivate);
  }
  @Transactional(readOnly=true) public List<PlanResponse> plans(){return plans.findByActiveTrueOrderByPricePaiseAsc().stream().map(p->new PlanResponse(p.getId(),p.getCode(),p.getName(),p.getDescription(),p.getPricePaise(),p.getDurationDays())).toList();}
  @Transactional(readOnly=true) public List<SubscriptionResponse> mine(String email){return subscriptions.findByUser_EmailIgnoreCaseOrderByCreatedAtDesc(email).stream().map(this::dto).toList();}
